@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Randomizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes confetti-fall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        .winner-animate {
+            animation: bounce 0.5s infinite alternate;
+        }
+        @keyframes bounce {
+            from { transform: scale(1); }
+            to { transform: scale(1.05); }
+        }
+        .mode-btn-active {
+            background-color: #4f46e5 !important;
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+
+    <div class="max-w-6xl mx-auto p-4 md:p-8">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-indigo-600 mb-2">Ultimate Randomizer</h1>
+            <p class="text-slate-500">The all-in-one tool for names, teams, and rankings.</p>
+        </header>
+
+        <!-- Mode Selector -->
+        <div class="flex flex-wrap justify-center gap-2 mb-8">
+            <button onclick="setMode('single')" id="btn-single" class="mode-btn-active bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 font-semibold text-sm transition-all hover:bg-slate-100">Single Winner</button>
+            <button onclick="setMode('multiple')" id="btn-multiple" class="bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 font-semibold text-sm transition-all hover:bg-slate-100">Multiple Draws</button>
+            <button onclick="setMode('shuffle')" id="btn-shuffle" class="bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 font-semibold text-sm transition-all hover:bg-slate-100">Ranked Order</button>
+            <button onclick="setMode('teams')" id="btn-teams" class="bg-white px-4 py-2 rounded-full shadow-sm border border-slate-200 font-semibold text-sm transition-all hover:bg-slate-100">Group Splitter</button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Input -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Add Names</label>
+                    <textarea 
+                        id="nameInput" 
+                        oninput="updateNames()"
+                        placeholder="Enter names separated by commas or new lines..." 
+                        class="w-full h-48 p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                    ></textarea>
+                    <div class="mt-4 flex flex-col gap-2">
+                        <button id="clearBtn" onclick="clearAll()" class="w-full text-slate-500 hover:text-red-500 text-sm py-1 transition-colors">
+                            Clear Everything
+                        </button>
+                    </div>
+                </div>
+
+                <div id="modeSettings" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hidden">
+                    <h3 class="text-sm font-semibold text-slate-700 mb-3">Mode Settings</h3>
+                    <div id="setting-multi" class="hidden">
+                        <label class="text-xs text-slate-500 block mb-1">Number of winners:</label>
+                        <input type="number" id="drawCount" min="1" value="3" class="w-full p-2 border rounded-lg text-sm">
+                    </div>
+                    <div id="setting-teams" class="hidden">
+                        <label class="text-xs text-slate-500 block mb-1">Number of teams:</label>
+                        <input type="number" id="teamCount" min="2" value="2" class="w-full p-2 border rounded-lg text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Results -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Action Card -->
+                <div id="displayArea" class="bg-white min-h-[300px] flex flex-col items-center justify-center rounded-3xl shadow-xl border-4 border-white relative overflow-hidden text-center p-8">
+                    <div id="statusLabel" class="absolute top-4 text-xs font-bold uppercase tracking-widest text-slate-400">Waiting for names...</div>
+                    
+                    <div id="mainDisplay" class="w-full">
+                        <div id="displayText" class="text-4xl md:text-6xl font-black text-slate-200 select-none">?</div>
+                        <div id="listDisplay" class="hidden text-left max-h-64 overflow-y-auto space-y-2 px-4"></div>
+                    </div>
+
+                    <button id="actionBtn" onclick="runRandomizer()" class="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white text-xl px-12 py-4 rounded-full font-bold shadow-lg transform active:scale-95 transition-all disabled:bg-slate-300 disabled:cursor-not-allowed">
+                        START RANDOMIZING
+                    </button>
+                </div>
+
+                <!-- History / Detailed Results -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 id="resultTitle" class="text-sm font-semibold text-slate-700 mb-4 flex justify-between items-center">
+                        Results Log
+                        <button onclick="clearHistory()" class="text-xs text-indigo-500 hover:underline">Clear</button>
+                    </h3>
+                    <div id="historyList" class="space-y-3">
+                        <span class="text-slate-400 text-sm italic">No results yet.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Overlay (for Single Winner) -->
+    <div id="msgOverlay" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl transform scale-90 transition-transform duration-300" id="msgContent">
+            <div class="text-6xl mb-4">🏆</div>
+            <h2 class="text-2xl font-bold mb-2">We have a winner!</h2>
+            <div id="winnerText" class="text-4xl font-black text-indigo-600 mb-6 break-words"></div>
+            <button onclick="closeOverlay()" class="w-full bg-slate-800 text-white font-bold py-3 rounded-xl hover:bg-slate-900">Awesome!</button>
+        </div>
+    </div>
+
+    <script>
+        let names = [];
+        let currentMode = 'single';
+        let isProcessing = false;
+
+        const nameInput = document.getElementById('nameInput');
+        const displayText = document.getElementById('displayText');
+        const listDisplay = document.getElementById('listDisplay');
+        const actionBtn = document.getElementById('actionBtn');
+        const statusLabel = document.getElementById('statusLabel');
+        const historyList = document.getElementById('historyList');
+        const overlay = document.getElementById('msgOverlay');
+        const winnerText = document.getElementById('winnerText');
+
+        function setMode(mode) {
+            currentMode = mode;
+            // Update Buttons
+            ['single', 'multiple', 'shuffle', 'teams'].forEach(m => {
+                document.getElementById(`btn-${m}`).classList.remove('mode-btn-active');
+            });
+            document.getElementById(`btn-${mode}`).classList.add('mode-btn-active');
+
+            // Update Settings Visibility
+            document.getElementById('modeSettings').classList.toggle('hidden', mode === 'single' || mode === 'shuffle');
+            document.getElementById('setting-multi').classList.toggle('hidden', mode !== 'multiple');
+            document.getElementById('setting-teams').classList.toggle('hidden', mode !== 'teams');
+
+            // Reset UI
+            displayText.classList.remove('hidden');
+            listDisplay.classList.add('hidden');
+            displayText.innerText = "?";
+            displayText.className = "text-4xl md:text-6xl font-black text-slate-200 select-none";
+            updateNames();
+        }
+
+        function updateNames() {
+            const raw = nameInput.value;
+            names = raw.split(/[\n,]+/).map(n => n.trim()).filter(n => n.length > 0);
+            
+            if (names.length > 0) {
+                statusLabel.innerText = `${names.length} names loaded`;
+                actionBtn.disabled = false;
+            } else {
+                statusLabel.innerText = "Waiting for names...";
+                actionBtn.disabled = true;
+            }
+        }
+
+        function shuffleArray(array) {
+            const newArr = [...array];
+            for (let i = newArr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+            }
+            return newArr;
+        }
+
+        async function runRandomizer() {
+            if (isProcessing || names.length === 0) return;
+            isProcessing = true;
+            actionBtn.disabled = true;
+            
+            // Animation phase for all modes
+            let timer = 0;
+            const duration = 1500;
+            displayText.classList.remove('text-slate-200');
+            displayText.classList.add('text-slate-800');
+            listDisplay.classList.add('hidden');
+            displayText.classList.remove('hidden');
+
+            const animInterval = setInterval(() => {
+                timer += 50;
+                displayText.innerText = names[Math.floor(Math.random() * names.length)];
+                if (timer >= duration) {
+                    clearInterval(animInterval);
+                    finalize();
+                }
+            }, 50);
+        }
+
+        function finalize() {
+            isProcessing = false;
+            actionBtn.disabled = false;
+            let resultHTML = "";
+            let logTitle = "";
+
+            if (currentMode === 'single') {
+                const winner = names[Math.floor(Math.random() * names.length)];
+                displayText.innerText = winner;
+                displayText.classList.add('text-indigo-600', 'winner-animate');
+                winnerText.innerText = winner;
+                showOverlay();
+                logTitle = "Winner";
+                resultHTML = `<div class="font-bold text-indigo-600">${winner}</div>`;
+                createConfetti();
+            } 
+            else if (currentMode === 'multiple') {
+                const count = parseInt(document.getElementById('drawCount').value) || 1;
+                const shuffled = shuffleArray(names).slice(0, Math.min(count, names.length));
+                displayText.classList.add('hidden');
+                listDisplay.classList.remove('hidden');
+                listDisplay.innerHTML = shuffled.map((n, i) => `<div class="p-2 bg-indigo-50 border border-indigo-100 rounded-lg font-bold text-indigo-700">#${i+1} Draw: ${n}</div>`).join('');
+                logTitle = `${shuffled.length} Winners Drawn`;
+                resultHTML = `<div class="text-sm text-slate-600">${shuffled.join(', ')}</div>`;
+                createConfetti();
+            }
+            else if (currentMode === 'shuffle') {
+                const shuffled = shuffleArray(names);
+                displayText.classList.add('hidden');
+                listDisplay.classList.remove('hidden');
+                listDisplay.innerHTML = shuffled.map((n, i) => `<div class="p-2 bg-slate-50 border border-slate-200 rounded-lg"><span class="text-slate-400 mr-2">${i+1}.</span> ${n}</div>`).join('');
+                logTitle = "Ranked Order";
+                resultHTML = `<div class="text-xs text-slate-500">Order: ${shuffled.join(' → ')}</div>`;
+            }
+            else if (currentMode === 'teams') {
+                const count = parseInt(document.getElementById('teamCount').value) || 2;
+                const shuffled = shuffleArray(names);
+                const teams = Array.from({ length: count }, () => []);
+                shuffled.forEach((name, i) => teams[i % count].push(name));
+                
+                displayText.classList.add('hidden');
+                listDisplay.classList.remove('hidden');
+                listDisplay.innerHTML = teams.map((team, i) => `
+                    <div class="mb-4">
+                        <div class="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-1">Team ${i+1}</div>
+                        <div class="flex flex-wrap gap-1">
+                            ${team.map(n => `<span class="bg-indigo-100 px-2 py-1 rounded text-sm">${n}</span>`).join('')}
+                        </div>
+                    </div>
+                `).join('');
+                logTitle = "Teams Split";
+                resultHTML = `<div class="text-xs text-slate-500">${teams.length} groups created.</div>`;
+            }
+
+            addToHistory(logTitle, resultHTML);
+        }
+
+        function addToHistory(title, content) {
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const item = document.createElement('div');
+            item.className = "bg-slate-50 p-3 rounded-xl border border-slate-100 animate-in fade-in slide-in-from-top-2 duration-300";
+            item.innerHTML = `
+                <div class="flex justify-between items-start mb-1">
+                    <span class="text-xs font-bold text-slate-400 uppercase">${title}</span>
+                    <span class="text-[10px] text-slate-300">${time}</span>
+                </div>
+                <div>${content}</div>
+            `;
+            
+            if (historyList.querySelector('span.italic')) historyList.innerHTML = '';
+            historyList.prepend(item);
+        }
+
+        function createConfetti() {
+            const colors = ['#818cf8', '#34d399', '#fbbf24', '#f87171', '#c084fc'];
+            for (let i = 0; i < 40; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = '-10px';
+                confetti.style.width = Math.random() * 8 + 4 + 'px';
+                confetti.style.height = confetti.style.width;
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+                confetti.style.animation = `confetti-fall ${1.5 + Math.random() * 2}s ease-out forwards`;
+                document.body.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 3500);
+            }
+        }
+
+        function showOverlay() {
+            overlay.classList.remove('hidden');
+            setTimeout(() => {
+                overlay.classList.remove('opacity-0');
+                document.getElementById('msgContent').classList.remove('scale-90');
+            }, 10);
+        }
+
+        function closeOverlay() {
+            overlay.classList.add('opacity-0');
+            document.getElementById('msgContent').classList.add('scale-90');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                displayText.classList.remove('winner-animate');
+            }, 300);
+        }
+
+        function clearAll() {
+            nameInput.value = '';
+            updateNames();
+            displayText.innerText = "?";
+            displayText.classList.add('text-slate-200');
+            listDisplay.innerHTML = '';
+        }
+
+        function clearHistory() {
+            historyList.innerHTML = '<span class="text-slate-400 text-sm italic">No results yet.</span>';
+        }
+
+        // Init
+        updateNames();
+    </script>
+</body>
+</html>
